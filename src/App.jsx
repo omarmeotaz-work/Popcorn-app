@@ -172,6 +172,22 @@ const SelectedMovie = ({ selectId, onCloseMovie, onAddWatch, watched }) => {
 
   useEffect(
     function () {
+      function callback(e) {
+        if (e.code === "Escape") {
+          onCloseMovie();
+        }
+      }
+      document.addEventListener("keydown", callback);
+
+      return function () {
+        document.removeEventListener("keydown", callback);
+      };
+    },
+    [onCloseMovie]
+  );
+
+  useEffect(
+    function () {
       async function getMovieDetails() {
         setIsloading(true);
         const res =
@@ -185,6 +201,18 @@ const SelectedMovie = ({ selectId, onCloseMovie, onAddWatch, watched }) => {
     },
     [selectId]
   );
+
+  useEffect(
+    function () {
+      if (!title) return;
+      document.title = `Movie | ${title}`;
+      return function () {
+        document.title = "usePopCorn";
+      };
+    },
+    [title]
+  );
+
   return (
     <div className="details">
       {isLoading ? (
@@ -273,13 +301,16 @@ export default function App() {
 
   useEffect(
     function () {
+      const controller = new AbortController();
       async function fetchMovies() {
         try {
           setIsloading(true);
           setIsError("");
-          const res =
-            await fetch(`http://www.omdbapi.com/?apikey=${KEY}&s=${query}}
-        `);
+          const res = await fetch(
+            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}}
+        `,
+            { signal: controller.signal }
+          );
 
           if (!res.ok)
             throw new Error("something went wrong with fetching the movies");
@@ -291,7 +322,9 @@ export default function App() {
           setMovies(data.Search);
           setIsloading(false);
         } catch (err) {
-          setIsError(err.message);
+          if (err.name !== "AbortError") {
+            setIsError(err.message);
+          }
         } finally {
           setIsloading(false);
         }
@@ -301,7 +334,11 @@ export default function App() {
         setIsError("");
         return;
       }
+      handleCloseMovie();
       fetchMovies();
+      return function () {
+        controller.abort();
+      };
     },
     [query]
   );
