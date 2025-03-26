@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import React from "react";
 import ReactDom from "react-dom/client";
 import "./index.css";
 import "./App.css";
 import Rating from "./assets/rating";
+import { useMovies } from "./usemovies";
+import { useLocalState } from "./useLocalState";
+import { useKey } from "./useKey";
 
 const average = (arr) =>
   arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
@@ -18,6 +21,14 @@ const Logo = () => {
 };
 
 const Search = ({ query, setQuery }) => {
+  const inputEl = useRef(null);
+
+  useKey("Enter", function () {
+    if (document.activeElement === inputEl.current) return;
+    inputEl.current.focus();
+    setQuery("");
+  });
+
   return (
     <input
       className="search"
@@ -25,6 +36,7 @@ const Search = ({ query, setQuery }) => {
       placeholder="Search movies..."
       value={query}
       onChange={(e) => setQuery(e.target.value)}
+      ref={inputEl}
     />
   );
 };
@@ -85,15 +97,15 @@ const Summary = ({ watched }) => {
         </p>
         <p>
           <span>⭐️</span>
-          <span>{avgImdbRating}</span>
+          <span>{Math.round(avgImdbRating, 2)}</span>
         </p>
         <p>
           <span>🌟</span>
-          <span>{avgUserRating}</span>
+          <span>{Math.round(avgUserRating)}</span>
         </p>
         <p>
           <span>⏳</span>
-          <span>{avgRuntime} min</span>
+          <span>{Math.round(avgRuntime)} min</span>
         </p>
       </div>
     </div>
@@ -155,6 +167,7 @@ const SelectedMovie = ({ selectId, onCloseMovie, onAddWatch, watched }) => {
     Director: director,
     imdbRating: imdbRating,
   } = movie;
+
   function handleAdd() {
     const newMovie = {
       imdbID: selectId,
@@ -170,21 +183,7 @@ const SelectedMovie = ({ selectId, onCloseMovie, onAddWatch, watched }) => {
     onCloseMovie();
   }
 
-  useEffect(
-    function () {
-      function callback(e) {
-        if (e.code === "Escape") {
-          onCloseMovie();
-        }
-      }
-      document.addEventListener("keydown", callback);
-
-      return function () {
-        document.removeEventListener("keydown", callback);
-      };
-    },
-    [onCloseMovie]
-  );
+  useKey("escape", onCloseMovie);
 
   useEffect(
     function () {
@@ -280,12 +279,12 @@ const Main = ({ children }) => {
 const KEY = "d6e9ca3";
 
 export default function App() {
-  const [movies, setMovies] = useState([]);
-  const [watched, setWatched] = useState([]);
-  const [isLoading, setIsloading] = useState(false);
-  const [isError, setIsError] = useState("");
   const [query, setQuery] = useState("");
   const [selectId, setSelectedId] = useState(null);
+
+  const { movies, isLoading, isError } = useMovies(query, handleCloseMovie);
+  const [watched, setWatched] = useLocalState([], "watched");
+
   function handleSelectedMovie(id) {
     setSelectedId(id);
   }
@@ -298,50 +297,6 @@ export default function App() {
   function handleRemoveWatched(id) {
     setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
   }
-
-  useEffect(
-    function () {
-      const controller = new AbortController();
-      async function fetchMovies() {
-        try {
-          setIsloading(true);
-          setIsError("");
-          const res = await fetch(
-            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}}
-        `,
-            { signal: controller.signal }
-          );
-
-          if (!res.ok)
-            throw new Error("something went wrong with fetching the movies");
-
-          const data = await res.json();
-
-          if (data.Response === "False") throw new Error("movie not found");
-
-          setMovies(data.Search);
-          setIsloading(false);
-        } catch (err) {
-          if (err.name !== "AbortError") {
-            setIsError(err.message);
-          }
-        } finally {
-          setIsloading(false);
-        }
-      }
-      if (query.length < 3) {
-        setMovies([]);
-        setIsError("");
-        return;
-      }
-      handleCloseMovie();
-      fetchMovies();
-      return function () {
-        controller.abort();
-      };
-    },
-    [query]
-  );
 
   return (
     <>
